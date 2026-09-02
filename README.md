@@ -2,6 +2,7 @@
 Completed all 34 levels multiple times and I'm now pursing to complete the writeups for all the levels.
 
 0->1 = https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/988710ad4bdd175effe4d85be4b3bcc265ad7b5f/Bandit-00-%3E01.md
+---------------------------------------------------------------------------------------------------------------------------------------
 1 -> 2= https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/988710ad4bdd175effe4d85be4b3bcc265ad7b5f/Bandit-01-%3E02.md
 2 -> 3= https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/988710ad4bdd175effe4d85be4b3bcc265ad7b5f/Bandit-02-%3E03.md
 3 -> 4= https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/988710ad4bdd175effe4d85be4b3bcc265ad7b5f/Bandit-03-%3E04.md
