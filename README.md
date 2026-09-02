@@ -64,3 +64,4 @@ Completed all 34 levels multiple times and I'm now pursing to complete the write
 31 -> 32= https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/615721a9cad88877c2871c008c1a403561a3efc6/Bandit-31-%3E32.md
 ---------------------------------------------------------------------------------------------------------------------------------------
 32 -> 33= https://github.com/Hjeng12/Overthewire-Bandit-WriteUps/blob/615721a9cad88877c2871c008c1a403561a3efc6/Bandit-32-%3E33.md
+---------------------------------------------------------------------------------------------------------------------------------------
